@@ -38,68 +38,65 @@ class WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.deepPurple,
-      body: Container(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-          image: AssetImage('assets/images/ai_image_2.jpg'),
-          fit: BoxFit.cover,
-          ),
+        backgroundColor: Colors.deepPurple,
+        body: Container(
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage('assets/images/ai_image_2.jpg'),
+              fit: BoxFit.cover,
+            ),
           ),
           child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                decoration: const BoxDecoration(
-                  image: DecorationImage(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                      decoration: const BoxDecoration(
+                          image: DecorationImage(
                     image: AssetImage('assets/images/ai_image_2.jpg'),
                     fit: BoxFit.cover,
-                  )
-                )
-              ),
-              const Text(
-                'AniBot 2.O welcomes you!',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: "FontMain"
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const AssistantPage()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                  backgroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
+                  ))),
+                  const Text(
+                    'AniBot 2.O welcomes you!',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: "FontMain"),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-                child: const Text(
-                  'Get Started',
-                  style: TextStyle(
-                    color: Colors.deepPurple,
-                    fontSize: 20,
-                    fontFamily: "FontMain"
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const AssistantPage()),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 40, vertical: 15),
+                      backgroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child: const Text(
+                      'Get Started',
+                      style: TextStyle(
+                          color: Colors.deepPurple,
+                          fontSize: 20,
+                          fontFamily: "FontMain"),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
-      )
-    );
+        ));
   }
 }
 
@@ -115,12 +112,12 @@ class _AssistantPageState extends State<AssistantPage> {
   final FlutterTts flutterTts = FlutterTts();
   late stt.SpeechToText _speech;
   bool _isListening = false;
+  bool _isGeneratingResponse = false; // New flag to track response generation
   String _text = "Press the button and start speaking";
-  final List<String> _chatHistory = [];
-
+  final List<Map<String, Object>> _chatHistory = [];
   final model = GenerativeModel(
     model: 'gemini-1.5-flash',
-    apiKey: 'GEMINI_API_KEY',
+    apiKey: 'AIzaSyDWPgnuVhdQfR1G9rVldx3ZtuXUSVUPqe0',
   );
 
   @override
@@ -130,34 +127,61 @@ class _AssistantPageState extends State<AssistantPage> {
   }
 
   void _addToChat(String message, bool isUserMessage) {
-    setState(() {
-      _chatHistory.add(message);
+  setState(() {
+    _chatHistory.add({
+      'message': message,
+      'isUserMessage': isUserMessage,
     });
-  }
+  });
+}
+
 
   // Voice input
   void _listen() async {
+    await flutterTts.stop();
     if (!_isListening) {
       bool available = await _speech.initialize();
       if (available) {
         setState(() => _isListening = true);
-        _speech.listen(onResult: (val) {
-          setState(() {
-            _text = val.recognizedWords;
-            if (val.hasConfidenceRating && val.confidence > 0) {
-              handleCommand(_text.toLowerCase());
+
+        _speech.listen(
+          onResult: (val) {
+            // Continuously update the recognized words
+            setState(() {
+              _text = val.recognizedWords;
+            });
+
+            // When finalResult is true, the user has stopped speaking
+            if (val.finalResult) {
+              setState(() => _isListening = false); // Stop listening
+              if (_text.isNotEmpty) {
+                handleCommand(
+                    _text.toLowerCase()); // Send full query to handleCommand
+              }
             }
-          });
-        });
+          },
+          listenFor: Duration(seconds: 10), // Set maximum listening time
+          pauseFor: Duration(seconds: 3), // Time to pause for final result
+          partialResults: true, // Show partial results during listening
+          onSoundLevelChange: (level) {}, // Optional: Monitor sound level
+        );
       }
     } else {
       setState(() => _isListening = false);
-      _speech.stop();
+      _speech.stop(); // Stop listening if already active
     }
   }
 
   // Functions to handle voice commands and map them to actions
   void handleCommand(String command) async {
+    // Stop listening if a valid command is detected
+    if (_isListening) {
+      setState(() => _isListening = false);
+      _speech.stop();
+    }
+
+    _addToChat(command, true); // User's command
+
     if (command.contains("flashlight on")) {
       speak("Turning on the flashlight");
       toggleFlashlight(true);
@@ -186,10 +210,22 @@ class _AssistantPageState extends State<AssistantPage> {
     } else if (command.contains("system")) {
       openSystemApp(command);
     } else {
-      final prompt = command;
-      final response = await model.generateContent([Content.text(prompt)]);
-      speak(response.text!);
-      _addToChat(response.text!, false); // Assistant's response
+      // Generating AI response
+      if (!_isGeneratingResponse) {
+        _isGeneratingResponse =
+            true; // Set flag to indicate response is being generated
+        final prompt = command;
+        final response = await model.generateContent([Content.text(prompt)]);
+
+        if (_isGeneratingResponse) {
+          speak(response.text!);
+          _addToChat(response.text!, false); // Assistant's response
+          _isGeneratingResponse = false; // Reset the flag
+        }
+      } else {
+        // If already generating, inform the user
+        speak("Still generating the previous response. Please wait.");
+      }
     }
   }
 
@@ -241,8 +277,9 @@ class _AssistantPageState extends State<AssistantPage> {
 
   // Function to open a website
   void openWebsite(String url) async {
-    if (await canLaunch(url)) {
-      await launch(url);
+    Uri uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
       speak("Opening website: $url");
       setState(() {
         _text = "Opening website: $url";
@@ -316,6 +353,9 @@ class _AssistantPageState extends State<AssistantPage> {
       openAppByPackageName('com.android.calculator2');
     } else if (command.contains("settings")) {
       openAppByPackageName('com.android.settings');
+    } else if (command.contains("youtube")) {
+      // Handle YouTube as a system or user-installed app
+      openAppByPackageName('com.google.android.youtube');
     } else {
       speak("System app not found: $command");
       setState(() {
@@ -340,6 +380,11 @@ class _AssistantPageState extends State<AssistantPage> {
     }
   }
 
+  // Function to speak using text-to-speech
+  Future<void> speak(String message) async {
+    await flutterTts.speak(message);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -349,34 +394,39 @@ class _AssistantPageState extends State<AssistantPage> {
           style: TextStyle(fontWeight: FontWeight.bold, fontFamily: "FontMain"),
         ),
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color.fromARGB(255, 182, 255, 252), Color.fromARGB(255, 64, 242, 251)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            )
-          )
-        ),
+            decoration: const BoxDecoration(
+                gradient: LinearGradient(
+          colors: [
+            Color.fromARGB(255, 182, 255, 252),
+            Color.fromARGB(255, 64, 242, 251)
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ))),
       ),
       body: Container(
         color: Colors.black,
         child: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              itemCount: _chatHistory.length,
-              itemBuilder: (context, index) {
-                bool isUserMessage = index % 2 == 0;
-                return ChatBubble(
-                  message: _chatHistory[index],
-                  isUserMessage: isUserMessage,
-                );
-              },
+          children: [
+            Expanded(
+              child: ListView.builder(
+                itemCount: _chatHistory.length,
+                itemBuilder: (context, index) {
+                  final item = _chatHistory[index]
+                      as Map<String, Object>; // Ensure type cast
+                  final isUserMessage = item['isUserMessage'] as bool;
+                  final message = item['message'] as String;
+
+                  return ChatBubble(
+                    message: message,
+                    isUserMessage: isUserMessage,
+                  );
+                },
+              ),
             ),
-          ),
-          _buildMessageInput(),
-        ],
-      ),
+            _buildMessageInput(),
+          ],
+        ),
       ),
     );
   }
@@ -395,7 +445,7 @@ class _AssistantPageState extends State<AssistantPage> {
               ),
               child: TextField(
                 onSubmitted: (value) {
-                  _addToChat(value, true);
+                  _addToChat(value, true); //chat User's message
                   handleCommand(value.toLowerCase());
                 },
                 style: const TextStyle(color: Colors.white),
@@ -422,36 +472,23 @@ class _AssistantPageState extends State<AssistantPage> {
   }
 
   // ChatBubble widget for displaying individual messages
-Widget ChatBubble({required String message, required bool isUserMessage}) {
-  return Align(
-    alignment: isUserMessage ? Alignment.centerRight : Alignment.centerLeft,
-    child: Container(
-      margin: const EdgeInsets.symmetric(vertical: 5.0),
-      padding: const EdgeInsets.all(16.0),
-      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-      decoration: isUserMessage
-          ? const BoxDecoration( // Only add the bubble decoration for user messages
-              color: Color.fromARGB(255, 43, 43, 43),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-                bottomLeft: Radius.circular(20),
-              ),
-            )
-          : null, // No decoration for assistant messages
-      child: Text(
-        message,
-        style: TextStyle(
-          color: isUserMessage ? Colors.white : const Color.fromARGB(255, 255, 255, 255), // Different text color for assistant messages
+  Widget ChatBubble({required String message, required bool isUserMessage}) {
+    return Align(
+      alignment: isUserMessage ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 10.0),
+        padding: const EdgeInsets.all(16.0),
+        constraints:
+            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        decoration: BoxDecoration(
+          color: isUserMessage ? Colors.blueGrey : Colors.grey[800],
+          borderRadius: BorderRadius.circular(15.0),
+        ),
+        child: Text(
+          message,
+          style: const TextStyle(color: Colors.white),
         ),
       ),
-    ),
-  );
-}
-
-
-  // Function to speak out a given message
-  Future<void> speak(String message) async {
-    await flutterTts.speak(message);
+    );
   }
 }
