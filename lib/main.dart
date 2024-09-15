@@ -117,7 +117,7 @@ class _AssistantPageState extends State<AssistantPage> {
   final List<Map<String, Object>> _chatHistory = [];
   final model = GenerativeModel(
     model: 'gemini-1.5-flash',
-    apiKey: 'AIzaSyDWPgnuVhdQfR1G9rVldx3ZtuXUSVUPqe0',
+    apiKey: 'GEMINI_API_KEY',
   );
 
   @override
