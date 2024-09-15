@@ -348,9 +348,19 @@ class _AssistantPageState extends State<AssistantPage> {
           'AniBot 2.O',
           style: TextStyle(fontWeight: FontWeight.bold, fontFamily: "FontMain"),
         ),
-        backgroundColor: Colors.deepPurple,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color.fromARGB(255, 182, 255, 252), Color.fromARGB(255, 64, 242, 251)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            )
+          )
+        ),
       ),
-      body: Column(
+      body: Container(
+        color: Colors.black,
+        child: Column(
         children: [
           Expanded(
             child: ListView.builder(
@@ -366,6 +376,7 @@ class _AssistantPageState extends State<AssistantPage> {
           ),
           _buildMessageInput(),
         ],
+      ),
       ),
     );
   }
