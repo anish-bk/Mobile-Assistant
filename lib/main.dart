@@ -52,12 +52,6 @@ class WelcomePage extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                      decoration: const BoxDecoration(
-                          image: DecorationImage(
-                    image: AssetImage('assets/images/ai_image_2.jpg'),
-                    fit: BoxFit.cover,
-                  ))),
                   const Text(
                     'AniBot 2.O welcomes you!',
                     style: TextStyle(
@@ -112,9 +106,9 @@ class _AssistantPageState extends State<AssistantPage> {
   final FlutterTts flutterTts = FlutterTts();
   late stt.SpeechToText _speech;
   bool _isListening = false;
-  bool _isGeneratingResponse = false; // New flag to track response generation
   String _text = "Press the button and start speaking";
   final List<Map<String, Object>> _chatHistory = [];
+  final TextEditingController _messageController = TextEditingController();
   final model = GenerativeModel(
     model: 'gemini-1.5-flash',
     apiKey: 'GEMINI_API_KEY',
@@ -126,15 +120,20 @@ class _AssistantPageState extends State<AssistantPage> {
     _speech = stt.SpeechToText();
   }
 
-  void _addToChat(String message, bool isUserMessage) {
-  setState(() {
-    _chatHistory.add({
-      'message': message,
-      'isUserMessage': isUserMessage,
-    });
-  });
-}
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
 
+  void _addToChat(String message, bool isUserMessage) {
+    setState(() {
+      _chatHistory.add({
+        'message': message,
+        'isUserMessage': isUserMessage,
+      });
+    });
+  }
 
   // Voice input
   void _listen() async {
@@ -160,8 +159,9 @@ class _AssistantPageState extends State<AssistantPage> {
               }
             }
           },
-          listenFor: Duration(seconds: 10), // Set maximum listening time
-          pauseFor: Duration(seconds: 3), // Time to pause for final result
+          listenFor: const Duration(seconds: 100), // Set maximum listening time
+          pauseFor:
+              const Duration(seconds: 3), // Time to pause for final result
           partialResults: true, // Show partial results during listening
           onSoundLevelChange: (level) {}, // Optional: Monitor sound level
         );
@@ -210,23 +210,16 @@ class _AssistantPageState extends State<AssistantPage> {
     } else if (command.contains("system")) {
       openSystemApp(command);
     } else {
-      // Generating AI response
-      if (!_isGeneratingResponse) {
-        _isGeneratingResponse =
-            true; // Set flag to indicate response is being generated
-        final prompt = command;
-        final response = await model.generateContent([Content.text(prompt)]);
-
-        if (_isGeneratingResponse) {
-          speak(response.text!);
-          _addToChat(response.text!, false); // Assistant's response
-          _isGeneratingResponse = false; // Reset the flag
-        }
-      } else {
-        // If already generating, inform the user
-        speak("Still generating the previous response. Please wait.");
-      }
+      generateResponse(command);
     }
+  }
+
+  void generateResponse(String command) async {
+    final prompt =
+        "Answer this query in less than 50 words unless specified: $command";
+    final response = await model.generateContent([Content.text(prompt)]);
+    _addToChat(response.text!, false);
+    speak(response.text!);
   }
 
   // Function to toggle flashlight
@@ -412,8 +405,7 @@ class _AssistantPageState extends State<AssistantPage> {
               child: ListView.builder(
                 itemCount: _chatHistory.length,
                 itemBuilder: (context, index) {
-                  final item = _chatHistory[index]
-                      as Map<String, Object>; // Ensure type cast
+                  final item = _chatHistory[index]; // Ensure type cast
                   final isUserMessage = item['isUserMessage'] as bool;
                   final message = item['message'] as String;
 
@@ -444,9 +436,11 @@ class _AssistantPageState extends State<AssistantPage> {
                 borderRadius: BorderRadius.circular(25),
               ),
               child: TextField(
+                controller: _messageController,
                 onSubmitted: (value) {
-                  _addToChat(value, true); //chat User's message
+                  //_addToChat(value, true); //chat User's message
                   handleCommand(value.toLowerCase());
+                  _messageController.clear();
                 },
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
