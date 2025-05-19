@@ -18,7 +18,6 @@ A smart mobile assistant application built with Flutter that helps users manage 
 - Flutter SDK (latest version)
 - Dart SDK
 - Android Studio / VS Code
-- Android SDK / Xcode (for iOS development)
 
 ### Installation
 
